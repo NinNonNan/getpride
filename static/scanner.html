@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Scanner Barcode e invio API</title>
+<script src="https://unpkg.com/@zxing/library@latest"></script>
+</head>
+<body>
+<h2>Scanner Barcode e invio al server</h2>
+
+<video id="video" width="300" height="200" style="border: 1px solid gray"></video>
+<p>Barcode rilevato: <span id="barcode"></span></p>
+<p>Risposta API:</p>
+<pre id="response"></pre>
+
+<script>
+const codeReader = new ZXing.BrowserBarcodeReader()
+const videoElement = document.getElementById('video')
+const barcodeOutput = document.getElementById('barcode')
+const responseOutput = document.getElementById('response')
+
+// Iniziamo la scansione con la webcam
+codeReader
+  .listVideoInputDevices()
+  .then((videoInputDevices) => {
+    // Usa la prima videocamera disponibile (solitamente la posteriore su smartphone)
+    const firstDeviceId = videoInputDevices[0].deviceId
+    codeReader.decodeFromVideoDevice(firstDeviceId, videoElement, (result, err) => {
+      if (result) {
+        const barcode = result.text
+        barcodeOutput.textContent = barcode
+        // Invia il barcode al server solo la prima volta che lo legge
+        if (!window.sentBarcode || window.sentBarcode !== barcode) {
+          window.sentBarcode = barcode
+          fetch('http://TUO_IP_O_DOMINIO:8000/pride', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ barcode: barcode })
+          })
+          .then(res => res.json())
+          .then(data => {
+            responseOutput.textContent = JSON.stringify(data, null, 2)
+          })
+          .catch(err => {
+            responseOutput.textContent = 'Errore: ' + err.message
+          })
+        }
+      }
+      if (err && !(err instanceof ZXing.NotFoundException)) {
+        console.error(err)
+      }
+    })
+  })
+  .catch(err => console.error(err))
+</script>
+</body>
+</html>
