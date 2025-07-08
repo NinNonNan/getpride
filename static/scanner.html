@@ -4,67 +4,41 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Barcode Pride Scanner</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 1rem;
-      background: #fafafa;
-      font-size: 1.2rem;
-      line-height: 1.4;
-    }
-    video {
-      width: 100vw;
-      max-width: 480px;
-      height: auto;
-      border: 3px solid #666;
-      border-radius: 1rem;
-      margin-bottom: 1rem;
-      background: black;
-    }
-    #loading {
-      display: none;
-      font-weight: bold;
-      margin-bottom: 1rem;
-      font-size: 1.1rem;
-      color: #444;
-    }
-    #result {
-      white-space: pre-line;
-      background: #f0f0f0;
-      padding: 1rem;
-      border-radius: 1rem;
-      font-size: 1rem;
-      max-width: 480px;
-      margin: 0 auto;
-      word-wrap: break-word;
-    }
-  </style>
-</head>
-<body>
-  <h1>Scanner Barcode Pride</h1>
-  <video id="video" autoplay muted playsinline></video>
-  <div id="loading">⏳ Analisi in corso...</div>
-  <div id="result">Inquadra un codice a barre per iniziare</div>
-
   <script type="module">
-    import { BrowserMultiFormatReader } from 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.0.10/+esm';
+    import { BrowserMultiFormatReader, NotFoundException } from 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.0.10/+esm';
 
     const codeReader = new BrowserMultiFormatReader();
     const videoElement = document.getElementById('video');
     const resultElement = document.getElementById('result');
     const loading = document.getElementById('loading');
+    const debugElement = document.getElementById('debug');
+
+    function logDebug(msg) {
+      const now = new Date().toLocaleTimeString();
+      debugElement.textContent += `[${now}] ${msg}\n`;
+      debugElement.scrollTop = debugElement.scrollHeight;
+      console.log(msg);
+    }
 
     async function startScanner() {
       try {
-        const constraints = {
-          video: { facingMode: { exact: "environment" } }
-        };
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        videoElement.srcObject = stream;
+        logDebug("Enumerazione dispositivi...");
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputDevices = devices.filter(d => d.kind === 'videoinput');
+        logDebug(`Dispositivi video trovati: ${videoInputDevices.length}`);
 
-        await codeReader.decodeFromVideoElement(videoElement, async (result, err) => {
+        let selectedDeviceId = videoInputDevices[0]?.deviceId || null;
+        const backCam = videoInputDevices.find(d => d.label.toLowerCase().includes('back') || d.label.toLowerCase().includes('posteriore'));
+        if (backCam) {
+          selectedDeviceId = backCam.deviceId;
+          logDebug(`Camera posteriore selezionata: ${backCam.label}`);
+        } else {
+          logDebug(`Camera posteriore non trovata, uso: ${videoInputDevices[0]?.label}`);
+        }
+
+        await codeReader.decodeFromVideoDevice(selectedDeviceId, videoElement, async (result, err) => {
           if (result) {
+            logDebug(`Codice trovato: ${result.text}`);
             codeReader.reset();
             loading.style.display = "block";
             resultElement.innerText = `Codice: ${result.text}`;
@@ -80,6 +54,7 @@
               loading.style.display = "none";
 
               if (response.ok) {
+                logDebug("Risposta API ricevuta correttamente");
                 resultElement.innerText = `
 ✅ Specimen: ${data.name}
 📦 Barcode: ${data.barcode}
@@ -90,26 +65,97 @@
 ⚡ Energy: ${data.pride.Energy}
 🧬 Types: ${data.types.join(", ")}
 ☣️ Mutation: ${data.mutation_flag ? "Yes" : "No"}
-                `.trim();
+`;
               } else {
+                logDebug(`Errore API: ${data.detail}`);
                 resultElement.innerText = `Errore: ${data.detail}`;
               }
-            } catch (err) {
+            } catch (fetchErr) {
               loading.style.display = "none";
-              resultElement.innerText = `Errore di rete: ${err.message}`;
+              logDebug(`Errore rete: ${fetchErr.message}`);
+              resultElement.innerText = `Errore di rete: ${fetchErr.message}`;
             }
-          }
-          if (err && !(err instanceof ZXing.NotFoundException)) {
-            // mostra errori diversi da "codice non trovato"
-            console.error(err);
+          } else if (err && !(err instanceof NotFoundException)) {
+            logDebug(`Errore scansione: ${err}`);
           }
         });
+
       } catch (e) {
+        logDebug(`Errore apertura camera: ${e.message}`);
         resultElement.innerText = `Errore nell'aprire la camera: ${e.message}`;
       }
     }
 
     window.onload = () => startScanner();
   </script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 1rem;
+      background: #fafafa;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+    video {
+      width: 100vw;
+      max-width: 600px;
+      aspect-ratio: 4 / 3;
+      border: 3px solid #333;
+      border-radius: 12px;
+      margin-bottom: 1rem;
+      background: black;
+      align-self: center;
+    }
+    #loading {
+      display: none;
+      font-weight: bold;
+      margin-bottom: 1rem;
+      font-size: 1.2rem;
+      color: #007bff;
+    }
+    #result {
+      white-space: pre-line;
+      background: #f0f0f0;
+      padding: 1rem;
+      border-radius: 8px;
+      max-width: 600px;
+      margin: 0 auto 1rem;
+      font-size: 1.1rem;
+      color: #222;
+      min-height: 5rem;
+      text-align: left;
+      word-break: break-word;
+    }
+    #debug {
+      background: #222;
+      color: #0f0;
+      font-family: monospace;
+      font-size: 0.85rem;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 0.5rem;
+      border-radius: 8px;
+      height: 150px;
+      overflow-y: scroll;
+      text-align: left;
+      white-space: pre-wrap;
+      user-select: text;
+    }
+    h1 {
+      font-size: 1.8rem;
+      margin-bottom: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Scanner Barcode Pride</h1>
+  <video id="video" autoplay muted playsinline></video>
+  <div id="loading">⏳ Analisi in corso...</div>
+  <div id="result">Inquadra un codice a barre per iniziare</div>
+  <pre id="debug"></pre>
 </body>
 </html>
