@@ -1,72 +1,102 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="it">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scanner</title>
-    <style>
-        video {
-            width: 100%;
-            height: auto;
-            border: 2px solid black;
-        }
-        #scannerCanvas {
-            display: none;
-        }
-    </style>
-</head>
-<body>
-    <h1>Scanner</h1>
-    <video id="video" autoplay></video>
-    <canvas id="scannerCanvas"></canvas>
+  <meta charset="UTF-8">
+  <title>Barcode Pride Scanner</title>
+  <script type="module">
+    import { BrowserMultiFormatReader } from 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.0.10/+esm';
 
-    <script type="module">
-        async function startCamera() {
-            const video = document.getElementById('video');
-            const canvas = document.getElementById('scannerCanvas');
-            const ctx = canvas.getContext('2d');
+    const codeReader = new BrowserMultiFormatReader();
+    const videoElement = document.getElementById('video');
+    const resultElement = document.getElementById('result');
+    const loading = document.getElementById('loading');
+
+    async function startScanner() {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputDevices = devices.filter(d => d.kind === 'videoinput');
+
+        // Usa quella posteriore se esiste
+        let selectedDeviceId = videoInputDevices[0]?.deviceId;
+        const backCam = videoInputDevices.find(d => d.label.toLowerCase().includes('back'));
+        if (backCam) selectedDeviceId = backCam.deviceId;
+
+        const preview = await codeReader.decodeFromVideoDevice(selectedDeviceId, videoElement, async (result, err) => {
+          if (result) {
+            codeReader.reset();
+            loading.style.display = "block";
+            resultElement.innerText = `Codice: ${result.text}`;
 
             try {
-                // Specifica la fotocamera posteriore con facingMode: environment
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        facingMode: "environment"  // Usa la fotocamera posteriore
-                    }
-                });
+              const response = await fetch("/pride", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ barcode: result.text })
+              });
 
-                video.srcObject = stream;
+              const data = await response.json();
+              loading.style.display = "none";
 
-                video.onloadedmetadata = () => {
-                    console.log("Metadati caricati, video pronto");
-                    canvas.width = video.videoWidth;
-                    canvas.height = video.videoHeight;
-
-                    // Verifica se il video è stato caricato correttamente
-                    console.log(`Video dimensions: ${video.videoWidth}x${video.videoHeight}`);
-                };
-
-                video.onerror = (err) => {
-                    console.error('Errore nel video: ', err);
-                };
-
-                // Verifica se il flusso video è visibile
-                setInterval(() => {
-                    if (stream.active) {
-                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                    } else {
-                        console.error("Il flusso video non è attivo.");
-                    }
-                }, 100);
-
-            } catch (error) {
-                console.error('Errore nell\'accesso alla fotocamera:', error);
-                alert('Impossibile accedere alla fotocamera. Assicurati che il permesso sia concesso!');
+              if (response.ok) {
+                resultElement.innerText = `
+✅ Specimen: ${data.name}
+📦 Barcode: ${data.barcode}
+💥 Power: ${data.pride.Power}
+🛡 Resistence: ${data.pride.Resistence}
+🧠 Intelligence: ${data.pride.Intelligence}
+🔥 Determination: ${data.pride.Determination}
+⚡ Energy: ${data.pride.Energy}
+🧬 Types: ${data.types.join(", ")}
+☣️ Mutation: ${data.mutation_flag ? "Yes" : "No"}
+`;
+              } else {
+                resultElement.innerText = `Errore: ${data.detail}`;
+              }
+            } catch (err) {
+              loading.style.display = "none";
+              resultElement.innerText = `Errore di rete: ${err.message}`;
             }
-        }
+          }
+        });
+      } catch (e) {
+        resultElement.innerText = `Errore nell'aprire la camera: ${e.message}`;
+      }
+    }
 
-        window.onload = () => {
-            startCamera();
-        };
-    </script>
+    window.onload = () => startScanner();
+  </script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 1rem;
+      background: #fafafa;
+    }
+    video {
+      width: 100%;
+      max-width: 400px;
+      border: 2px solid #ccc;
+      border-radius: 12px;
+      margin-bottom: 1rem;
+    }
+    #loading {
+      display: none;
+      font-weight: bold;
+      margin-bottom: 1rem;
+    }
+    #result {
+      white-space: pre-line;
+      background: #f0f0f0;
+      padding: 1rem;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Scanner Barcode Pride</h1>
+  <video id="video" autoplay muted playsinline></video>
+  <div id="loading">⏳ Analisi in corso...</div>
+  <div id="result">Inquadra un codice a barre per iniziare</div>
 </body>
 </html>
