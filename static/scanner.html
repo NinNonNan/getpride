@@ -2,6 +2,7 @@
 <html lang="it">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Barcode Pride Scanner</title>
   <style>
     body {
@@ -9,24 +10,34 @@
       text-align: center;
       padding: 1rem;
       background: #fafafa;
+      font-size: 1.2rem;
+      line-height: 1.4;
     }
     video {
-      width: 100%;
-      max-width: 400px;
-      border: 2px solid #ccc;
-      border-radius: 12px;
+      width: 100vw;
+      max-width: 480px;
+      height: auto;
+      border: 3px solid #666;
+      border-radius: 1rem;
       margin-bottom: 1rem;
+      background: black;
     }
     #loading {
       display: none;
       font-weight: bold;
       margin-bottom: 1rem;
+      font-size: 1.1rem;
+      color: #444;
     }
     #result {
       white-space: pre-line;
       background: #f0f0f0;
       padding: 1rem;
-      border-radius: 8px;
+      border-radius: 1rem;
+      font-size: 1rem;
+      max-width: 480px;
+      margin: 0 auto;
+      word-wrap: break-word;
     }
   </style>
 </head>
@@ -36,7 +47,6 @@
   <div id="loading">⏳ Analisi in corso...</div>
   <div id="result">Inquadra un codice a barre per iniziare</div>
 
-  <!-- SCRIPT POSIZIONATO QUI, DOPO IL DOM -->
   <script type="module">
     import { BrowserMultiFormatReader } from 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.0.10/+esm';
 
@@ -47,14 +57,13 @@
 
     async function startScanner() {
       try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoInputDevices = devices.filter(d => d.kind === 'videoinput');
+        const constraints = {
+          video: { facingMode: { exact: "environment" } }
+        };
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        videoElement.srcObject = stream;
 
-        let selectedDeviceId = videoInputDevices[0]?.deviceId;
-        const backCam = videoInputDevices.find(d => d.label.toLowerCase().includes('back'));
-        if (backCam) selectedDeviceId = backCam.deviceId;
-
-        await codeReader.decodeFromVideoDevice(selectedDeviceId, videoElement, async (result, err) => {
+        await codeReader.decodeFromVideoElement(videoElement, async (result, err) => {
           if (result) {
             codeReader.reset();
             loading.style.display = "block";
@@ -89,6 +98,10 @@
               loading.style.display = "none";
               resultElement.innerText = `Errore di rete: ${err.message}`;
             }
+          }
+          if (err && !(err instanceof ZXing.NotFoundException)) {
+            // mostra errori diversi da "codice non trovato"
+            console.error(err);
           }
         });
       } catch (e) {
