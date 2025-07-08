@@ -27,8 +27,11 @@
             const ctx = canvas.getContext('2d');
 
             try {
+                // Specifica la fotocamera posteriore con facingMode: environment
                 const stream = await navigator.mediaDevices.getUserMedia({
-                    video: true
+                    video: {
+                        facingMode: "environment"  // Usa la fotocamera posteriore
+                    }
                 });
 
                 video.srcObject = stream;
