@@ -22,7 +22,14 @@
 
     async function startScanner() {
       try {
-        logDebug("Enumerazione dispositivi...");
+        logDebug("Richiesta permesso videocamera...");
+        // Chiedo permesso e ottengo stream video
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        logDebug("Permesso videocamera ottenuto");
+        videoElement.srcObject = stream;
+        await videoElement.play();
+
+        // Ora prendo i dispositivi e scelgo camera posteriore se possibile
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoInputDevices = devices.filter(d => d.kind === 'videoinput');
         logDebug(`Dispositivi video trovati: ${videoInputDevices.length}`);
@@ -35,6 +42,10 @@
         } else {
           logDebug(`Camera posteriore non trovata, uso: ${videoInputDevices[0]?.label}`);
         }
+
+        // Reset stream e uso la camera selezionata per il decoder (per evitare conflitti)
+        stream.getTracks().forEach(track => track.stop());
+        logDebug("Stream fermato per riassegnazione camera al decoder");
 
         await codeReader.decodeFromVideoDevice(selectedDeviceId, videoElement, async (result, err) => {
           if (result) {
@@ -109,6 +120,7 @@
       margin-bottom: 1rem;
       background: black;
       align-self: center;
+      object-fit: cover;
     }
     #loading {
       display: none;
