@@ -1,71 +1,8 @@
 <!DOCTYPE html>
 <html lang="it">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Barcode Pride Scanner</title>
-  <script type="module">
-    import { BrowserMultiFormatReader } from 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.0.10/+esm';
-
-    const codeReader = new BrowserMultiFormatReader();
-    const videoElement = document.getElementById('video');
-    const resultElement = document.getElementById('result');
-    const loading = document.getElementById('loading');
-
-    async function startScanner() {
-      try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoInputDevices = devices.filter(d => d.kind === 'videoinput');
-
-        // Usa quella posteriore se esiste
-        let selectedDeviceId = videoInputDevices[0]?.deviceId;
-        const backCam = videoInputDevices.find(d => d.label.toLowerCase().includes('back'));
-        if (backCam) selectedDeviceId = backCam.deviceId;
-
-        const preview = await codeReader.decodeFromVideoDevice(selectedDeviceId, videoElement, async (result, err) => {
-          if (result) {
-            codeReader.reset();
-            loading.style.display = "block";
-            resultElement.innerText = `Codice: ${result.text}`;
-
-            try {
-              const response = await fetch("/pride", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ barcode: result.text })
-              });
-
-              const data = await response.json();
-              loading.style.display = "none";
-
-              if (response.ok) {
-                resultElement.innerText = `
-✅ Specimen: ${data.name}
-📦 Barcode: ${data.barcode}
-💥 Power: ${data.pride.Power}
-🛡 Resistence: ${data.pride.Resistence}
-🧠 Intelligence: ${data.pride.Intelligence}
-🔥 Determination: ${data.pride.Determination}
-⚡ Energy: ${data.pride.Energy}
-🧬 Types: ${data.types.join(", ")}
-☣️ Mutation: ${data.mutation_flag ? "Yes" : "No"}
-`;
-              } else {
-                resultElement.innerText = `Errore: ${data.detail}`;
-              }
-            } catch (err) {
-              loading.style.display = "none";
-              resultElement.innerText = `Errore di rete: ${err.message}`;
-            }
-          }
-        });
-      } catch (e) {
-        resultElement.innerText = `Errore nell'aprire la camera: ${e.message}`;
-      }
-    }
-
-    window.onload = () => startScanner();
-  </script>
-
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -98,5 +35,68 @@
   <video id="video" autoplay muted playsinline></video>
   <div id="loading">⏳ Analisi in corso...</div>
   <div id="result">Inquadra un codice a barre per iniziare</div>
+
+  <!-- SCRIPT POSIZIONATO QUI, DOPO IL DOM -->
+  <script type="module">
+    import { BrowserMultiFormatReader } from 'https://cdn.jsdelivr.net/npm/@zxing/browser@0.0.10/+esm';
+
+    const codeReader = new BrowserMultiFormatReader();
+    const videoElement = document.getElementById('video');
+    const resultElement = document.getElementById('result');
+    const loading = document.getElementById('loading');
+
+    async function startScanner() {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputDevices = devices.filter(d => d.kind === 'videoinput');
+
+        let selectedDeviceId = videoInputDevices[0]?.deviceId;
+        const backCam = videoInputDevices.find(d => d.label.toLowerCase().includes('back'));
+        if (backCam) selectedDeviceId = backCam.deviceId;
+
+        await codeReader.decodeFromVideoDevice(selectedDeviceId, videoElement, async (result, err) => {
+          if (result) {
+            codeReader.reset();
+            loading.style.display = "block";
+            resultElement.innerText = `Codice: ${result.text}`;
+
+            try {
+              const response = await fetch("/pride", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ barcode: result.text })
+              });
+
+              const data = await response.json();
+              loading.style.display = "none";
+
+              if (response.ok) {
+                resultElement.innerText = `
+✅ Specimen: ${data.name}
+📦 Barcode: ${data.barcode}
+💥 Power: ${data.pride.Power}
+🛡 Resistence: ${data.pride.Resistence}
+🧠 Intelligence: ${data.pride.Intelligence}
+🔥 Determination: ${data.pride.Determination}
+⚡ Energy: ${data.pride.Energy}
+🧬 Types: ${data.types.join(", ")}
+☣️ Mutation: ${data.mutation_flag ? "Yes" : "No"}
+                `.trim();
+              } else {
+                resultElement.innerText = `Errore: ${data.detail}`;
+              }
+            } catch (err) {
+              loading.style.display = "none";
+              resultElement.innerText = `Errore di rete: ${err.message}`;
+            }
+          }
+        });
+      } catch (e) {
+        resultElement.innerText = `Errore nell'aprire la camera: ${e.message}`;
+      }
+    }
+
+    window.onload = () => startScanner();
+  </script>
 </body>
 </html>
