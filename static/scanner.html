@@ -1,60 +1,69 @@
 <!DOCTYPE html>
-<html lang="it">
+<html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Scanner Barcode e invio API</title>
-<script src="https://unpkg.com/@zxing/library@latest"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scanner</title>
+    <style>
+        video {
+            width: 100%;
+            height: auto;
+            border: 2px solid black;
+        }
+        #scannerCanvas {
+            display: none;
+        }
+    </style>
 </head>
 <body>
-<h2>Scanner Barcode e invio al server</h2>
+    <h1>Scanner</h1>
+    <video id="video" autoplay></video>
+    <canvas id="scannerCanvas"></canvas>
 
-<video id="video" width="300" height="200" style="border: 1px solid gray"></video>
-<p>Barcode rilevato: <span id="barcode"></span></p>
-<p>Risposta API:</p>
-<pre id="response"></pre>
+    <script type="module">
+        async function startCamera() {
+            const video = document.getElementById('video');
+            const canvas = document.getElementById('scannerCanvas');
+            const ctx = canvas.getContext('2d');
 
-<script>
-const codeReader = new ZXing.BrowserBarcodeReader()
-const videoElement = document.getElementById('video')
-const barcodeOutput = document.getElementById('barcode')
-const responseOutput = document.getElementById('response')
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: true
+                });
 
-// Iniziamo la scansione con la webcam
-codeReader
-  .listVideoInputDevices()
-  .then((videoInputDevices) => {
-    // Usa la prima videocamera disponibile (solitamente la posteriore su smartphone)
-    const firstDeviceId = videoInputDevices[0].deviceId
-    codeReader.decodeFromVideoDevice(firstDeviceId, videoElement, (result, err) => {
-      if (result) {
-        const barcode = result.text
-        barcodeOutput.textContent = barcode
-        // Invia il barcode al server solo la prima volta che lo legge
-        if (!window.sentBarcode || window.sentBarcode !== barcode) {
-          window.sentBarcode = barcode
-          fetch('http://TUO_IP_O_DOMINIO:8000/pride', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ barcode: barcode })
-          })
-          .then(res => res.json())
-          .then(data => {
-            responseOutput.textContent = JSON.stringify(data, null, 2)
-          })
-          .catch(err => {
-            responseOutput.textContent = 'Errore: ' + err.message
-          })
+                video.srcObject = stream;
+
+                video.onloadedmetadata = () => {
+                    console.log("Metadati caricati, video pronto");
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+
+                    // Verifica se il video è stato caricato correttamente
+                    console.log(`Video dimensions: ${video.videoWidth}x${video.videoHeight}`);
+                };
+
+                video.onerror = (err) => {
+                    console.error('Errore nel video: ', err);
+                };
+
+                // Verifica se il flusso video è visibile
+                setInterval(() => {
+                    if (stream.active) {
+                        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    } else {
+                        console.error("Il flusso video non è attivo.");
+                    }
+                }, 100);
+
+            } catch (error) {
+                console.error('Errore nell\'accesso alla fotocamera:', error);
+                alert('Impossibile accedere alla fotocamera. Assicurati che il permesso sia concesso!');
+            }
         }
-      }
-      if (err && !(err instanceof ZXing.NotFoundException)) {
-        console.error(err)
-      }
-    })
-  })
-  .catch(err => console.error(err))
-</script>
+
+        window.onload = () => {
+            startCamera();
+        };
+    </script>
 </body>
 </html>
